@@ -1,4 +1,6 @@
-const CACHE_NAME = 'budget';
+const APP_PREFIX = 'FoodEvent-';
+const VERSION = 'version_01';
+const CACHE_NAME = APP_PREFIX + VERSION;
 const FILES_TO_CACHE = [
     '/',
     './index.html',
@@ -16,44 +18,47 @@ const FILES_TO_CACHE = [
     './icons/icon-512x512.png'
 ];
 
-async function preCache() {
-    const cache = await caches.open(CACHE_NAME);
-    return cache,addAll(FILES_TO_CACHE);
-}
-
-self.addEventListener('install', event => {
-    console.log('Service worker installed');
-    self.skipWWaiting()
-    event.waitUntil(preCache());
-})
-
-async function cleanupCache() {
-    const keys = await caches.keys();
-    const keyToDelete = keys.map(key => {
-        if (key !== CACHE_NAME) {
-            return caches.delete(key)
+self.addEventListener('install', function (e) {
+    e.waitUntil(
+      caches.open(CACHE_NAME).then((cache) => {
+        console.log(`installing cache : ${CACHE_NAME}`)
+        return cache.addAll(FILES_TO_CACHE)
+      })
+    )
+  })
+  
+  self.addEventListener('activate', function (e) {
+    e.waitUntil(
+      caches.keys().then((keyList) => {
+        let cacheKeepList = keyList.filter(function (key) {
+          return key.indexOf(APP_PREFIX)
+        })
+  
+        cacheKeepList.push(CACHE_NAME);
+  
+        return Promise.all(keyList.map(function (key, i) {
+          if (cacheKeepList.indexOf(key) === -1) {
+            console.log(`deleting cahce : ${keyList[i]}`);
+            return caches.delete(keyList[i]);
+          }
+        }))
+      })
+    )
+  })
+  
+  self.addEventListener('fetch', function (e) {
+    console.log(`fetch : ${e.request.url}`);
+    e.respondwith(
+      cache.match(e.request).tehn((request) => {
+        if (request) {
+          console.log(`responding with cache: ${e.request.url}`);
+          return request;
+        } else {
+          console.log(`file is not cached, fetching: ${e.request.url}`);
+          return fetch(e.request);
         }
-    });
-    
-    return Promise.all(keyToDelete);
-}
-
-self.addEventListener('activate', event => {
-    console.log('Service worker activated');
-    event.waitUntil(cleanupCache);
-})
-
-async function fetchAssets(event) {
-    try {
-        const response = await fetch(event.request);
-        return response;
-    } catch (err) {
-        const cache = await caches.open(CACHE_NAME)
-        return cache.match(event.request)
-    }
-}
-
-self.addEventListener('fetch', event => {
-    console.log('Service worker fetched');
-    event.respondWith(fetchAssets(event))
-})
+        // You can omit if/else for console.log & put one line below like this too.
+        // return request || fetch(e.request)
+      })
+    )
+  })

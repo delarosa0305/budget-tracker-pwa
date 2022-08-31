@@ -1,44 +1,39 @@
-let db
+let db;
 
-const request = indexedDB.open('budget_tracker', 1)
+const request = indexedDB.open('budget_tracker', 1);
 
-request.onupgradeneeded = 
-    function(event) {
-        const db = event.target.result
+request.onupgradeneeded = function (event) {
+    const db = event.target.result;
+    db.createObjectStore('new_transaction', { autoIncrement: true });
+};
 
-        db.createObjectStore('budget_update', {autoIncrement: true})
-}
+request.onsuccess = function (event) {
+    db = event.target.result;
+    if (navigator.onLine) {
+        uploadTransaction();
+    }
+};
 
-request.onsuccess = 
-    function(event) {
-        db = event.target.result
-
-        if (navigator.onLine) {
-            uploadBudget()
-        }
-}
-
-request.onerror = 
-    function(event) {
-        console.log(event.target.errorCode)
-}
+request.onerror = function (event) {
+    console.log(event.target.errorCode);
+};
 
 function saveRecord(record) {
-    const transaction = db.transaction(['budget_update'], 'readwrite')
+    const transaction = db.transaction(['new_transaction'], 'readwrite');
 
-    const budgetObjectStore = transaction.objectStore('budget_update')
+    const budgetObjectStore = transaction.objectStore('new_transaction');
 
-    budgetObjectStore.add(record)
-}
+    budgetObjectStore.add(record);
+};
 
-function uploadBudget() {
-    const transaction = db.transaction(['budget_update'], 'readwrite')
+function uploadTransaction() {
+    const transaction = db.transaction(['new_transaction'], 'readwrite');
 
-    const budgetObjectStore = transaction.objectStore('budget_update')
+    const budgetObjectStore = transaction.objectStore('new_transaction');
 
-    const getAll = budgetObjectStore.getAll()
+    const getAll = budgetObjectStore.getAll();
 
-    getAll.onsuccess = function() {
+    getAll.onsuccess = function () {
         if (getAll.result.length > 0) {
             fetch('/api/transaction', {
                 method: 'POST',
@@ -48,25 +43,22 @@ function uploadBudget() {
                     'Content-Type': 'application/json'
                 }
             })
-            .then(response => response.json())
-            .then(serverResponse => {
-                if (serverResponse.message) {
-                    throw new Error(serverResponse)
-                }
+                .then(response => response.json())
+                .then(serverResponse => {
+                    if (serverResponse.message) {
+                        throw new Error(serverResponse);
+                    }
+                    const transaction = db.transaction(['new_transaction'], 'readwrite');
+                    const budgetObjectStore = transaction.objectStore('new_transaction');
+                    budgetObjectStore.clear();
 
-                const transaction = db.transaction(['budget_update'], 'readwrite')
-
-                const budgetObjectStore = transaction.objectStore('budget_update')
-
-                budgetObjectStore.clear()
-
-                alert('All budget updates have been posted')
-            })
-            .catch(err => {
-                console.log(err)
-            })
+                    alert('All saved transactions has been submitted!');
+                })
+                .catch(err => {
+                    console.log(err);
+                });
         }
     }
 }
 
-window.addEventListener('online', uploadBudget)
+window.addEventListener('online', uploadTransaction);
